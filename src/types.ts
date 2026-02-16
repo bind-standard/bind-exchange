@@ -6,7 +6,7 @@ export interface Bindings {
 
 /** Stored in KV as exchange metadata */
 export interface ExchangeMetadata {
-  passcodeHash: string;
+  passcodeHash?: string;
   exp: number;
   attempts: number;
   label?: string;
@@ -46,7 +46,7 @@ export interface CreateExchangeResponse {
 /** POST /exchange/:id/manifest.json request body */
 export interface RetrieveManifestRequest {
   recipient: string;
-  passcode: string;
+  passcode?: string;
 }
 
 /** POST /exchange/:id/manifest.json response body */

@@ -1,3 +1,5 @@
+import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { PASSCODE_LENGTH, PBKDF2_ITERATIONS, PBKDF2_SALT_LENGTH } from "../constants.js";
 
 /**
@@ -6,8 +8,8 @@ import { PASSCODE_LENGTH, PBKDF2_ITERATIONS, PBKDF2_SALT_LENGTH } from "../const
  */
 export async function hashPasscode(passcode: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_LENGTH));
-  const hash = await deriveKey(passcode, salt);
-  return `${toHex(salt)}:${toHex(new Uint8Array(hash))}`;
+  const hash = deriveKey(passcode, salt);
+  return `${toHex(salt)}:${toHex(hash)}`;
 }
 
 /**
@@ -16,12 +18,11 @@ export async function hashPasscode(passcode: string): Promise<string> {
 export async function verifyPasscode(passcode: string, stored: string): Promise<boolean> {
   const [saltHex, hashHex] = stored.split(":");
   const salt = fromHex(saltHex);
-  const hash = await deriveKey(passcode, salt);
+  const hash = deriveKey(passcode, salt);
   const expected = fromHex(hashHex);
-  const actual = new Uint8Array(hash);
 
-  if (expected.length !== actual.length) return false;
-  return crypto.subtle.timingSafeEqual(expected, actual);
+  if (expected.length !== hash.length) return false;
+  return crypto.subtle.timingSafeEqual(expected, hash);
 }
 
 /** Generate a random numeric passcode */
@@ -30,25 +31,8 @@ export function generatePasscode(): string {
   return Array.from(bytes, (b) => (b % 10).toString()).join("");
 }
 
-async function deriveKey(passcode: string, salt: Uint8Array): Promise<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(passcode),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
-  return crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: PBKDF2_ITERATIONS,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    256,
-  );
+function deriveKey(passcode: string, salt: Uint8Array): Uint8Array {
+  return pbkdf2(sha256, passcode, salt, { c: PBKDF2_ITERATIONS, dkLen: 32 });
 }
 
 function toHex(bytes: Uint8Array): string {

@@ -8,7 +8,7 @@ import {
   UNTRUSTED_MAX_PAYLOAD_SIZE,
 } from "../constants.js";
 import { generateExchangeId, validateJweHeader } from "../lib/crypto.js";
-import { generatePasscode, hashPasscode, verifyPasscode } from "../lib/passcode.js";
+import { hashPasscode, verifyPasscode } from "../lib/passcode.js";
 import {
   deleteMetadata,
   deletePayload,
@@ -31,7 +31,7 @@ const CreateRequestSchema = z.object({
     example: "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiY3R5IjoiYXBwbGljYXRpb24vYmluZCtqc29uIn0...",
   }),
   passcode: z.string().min(4).max(16).optional().openapi({
-    description: "Passcode for accessing the exchange. If omitted, one is generated.",
+    description: "Passcode for accessing the exchange. If omitted, no passcode is required.",
   }),
   label: z.string().max(100).optional().openapi({
     description: "Human-readable label for the exchange",
@@ -69,8 +69,8 @@ const RetrieveRequestSchema = z.object({
     description: "Name or identifier of the recipient",
     example: "Jane Doe, Marsh McLennan",
   }),
-  passcode: z.string().min(1).openapi({
-    description: "Passcode for accessing the exchange",
+  passcode: z.string().min(1).optional().openapi({
+    description: "Passcode for accessing the exchange (required only if the exchange is passcode-protected)",
   }),
 });
 
@@ -86,6 +86,7 @@ const ManifestResponseSchema = z.object({
 const ErrorSchema = z.object({
   error: z.string(),
   remainingAttempts: z.number().optional(),
+  authRequired: z.boolean().optional(),
 });
 
 // --- Routes ---
@@ -95,7 +96,7 @@ const createExchangeRoute = createRoute({
   path: "/exchange",
   summary: "Create an exchange",
   description:
-    "Store an encrypted BIND Bundle payload, returning a URL and passcode for retrieval. " +
+    "Store an encrypted BIND Bundle payload, returning a URL for retrieval. " +
     "Exchanges with a valid proof JWT are trusted (72h expiry, 5MB limit). " +
     "Exchanges without proof are untrusted (1h expiry, 10KB limit).",
   request: {
@@ -159,10 +160,8 @@ exchange.openapi(createExchangeRoute, async (c) => {
   const expSeconds = Math.min(body.exp ?? defaultExpiry, maxExpiry);
   const expTimestamp = Date.now() + expSeconds * 1000;
 
-  // Passcode: use provided or generate
-  const generatedPasscode = body.passcode ? undefined : generatePasscode();
-  const passcode = body.passcode ?? (generatedPasscode as string);
-  const passcodeHash = await hashPasscode(passcode);
+  // Passcode: only hash if provided
+  const passcodeHash = body.passcode ? await hashPasscode(body.passcode) : undefined;
 
   // Generate ID and store
   const id = generateExchangeId();
@@ -173,7 +172,7 @@ exchange.openapi(createExchangeRoute, async (c) => {
       c.env.EXCHANGE_KV,
       id,
       {
-        passcodeHash,
+        ...(passcodeHash ? { passcodeHash } : {}),
         exp: expTimestamp,
         attempts: 0,
         label: body.label,
@@ -191,9 +190,8 @@ exchange.openapi(createExchangeRoute, async (c) => {
     {
       url,
       exp: expTimestamp,
-      flag: "P",
+      flag: passcodeHash ? "P" : "",
       trusted,
-      ...(generatedPasscode ? { passcode: generatedPasscode } : {}),
       ...(iss ? { iss } : {}),
     },
     201,
@@ -266,18 +264,25 @@ exchange.openapi(retrieveManifestRoute, async (c) => {
     );
   }
 
-  // Verify passcode
-  const valid = await verifyPasscode(passcode, metadata.passcodeHash);
-  if (!valid) {
-    metadata.attempts += 1;
-    const remaining = MAX_ATTEMPTS - metadata.attempts;
-    await updateMetadata(c.env.EXCHANGE_KV, id, metadata);
-
-    if (remaining <= 0) {
-      await deletePayload(c.env.EXCHANGE_BUCKET, id);
+  // Verify passcode (if exchange is passcode-protected)
+  if (metadata.passcodeHash) {
+    if (!passcode) {
+      // Exchange requires a passcode but none was provided — do not count as attempt
+      return c.json({ error: "Passcode required", authRequired: true }, 401);
     }
 
-    return c.json({ error: "Invalid passcode", remainingAttempts: remaining }, 401);
+    const valid = await verifyPasscode(passcode, metadata.passcodeHash);
+    if (!valid) {
+      metadata.attempts += 1;
+      const remaining = MAX_ATTEMPTS - metadata.attempts;
+      await updateMetadata(c.env.EXCHANGE_KV, id, metadata);
+
+      if (remaining <= 0) {
+        await deletePayload(c.env.EXCHANGE_BUCKET, id);
+      }
+
+      return c.json({ error: "Invalid passcode", remainingAttempts: remaining }, 401);
+    }
   }
 
   // Load payload
