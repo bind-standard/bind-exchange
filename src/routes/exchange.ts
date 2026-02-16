@@ -70,7 +70,8 @@ const RetrieveRequestSchema = z.object({
     example: "Jane Doe, Marsh McLennan",
   }),
   passcode: z.string().min(1).optional().openapi({
-    description: "Passcode for accessing the exchange (required only if the exchange is passcode-protected)",
+    description:
+      "Passcode for accessing the exchange (required only if the exchange is passcode-protected)",
   }),
 });
 
