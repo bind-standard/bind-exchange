@@ -1,0 +1,25 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "bind-exchange",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-02-16",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"route": {
+		"pattern": "exchange.bind-standard.org/*",
+		"zone_name": "bind-standard.org"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "EXCHANGE_KV",
+			"id": "1ed75354386b41bda948043c55a19a79",
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "EXCHANGE_BUCKET",
+			"bucket_name": "bind-exchange"
+		}
+	]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "bind-exchange",
+  "version": "0.1.0",
+  "description": "Secure link-based sharing of encrypted BIND Bundles between insurance participants",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "bind",
+    "insurance",
+    "exchange",
+    "encryption",
+    "jwe",
+    "interoperability"
+  ],
+  "author": "",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --fix .",
+    "format": "biome format --fix .",
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "check:fix": "biome check --fix .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.11.9",
+    "@hono/zod-openapi": "^0.18.0",
+    "zod": "^3.24.0",
+    "jose": "^5.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.0",
+    "@cloudflare/workers-types": "^4.0.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.4.0"
+  },
+  "packageManager": "pnpm@10.24.0"
+}
