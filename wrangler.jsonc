@@ -10,6 +10,9 @@
 		"pattern": "exchange.bind-standard.org/*",
 		"zone_name": "bind-standard.org"
 	},
+  "observability": {
+    "enabled": true
+  },
 	"kv_namespaces": [
 		{
 			"binding": "EXCHANGE_KV",
